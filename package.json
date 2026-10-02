@@ -1,0 +1,18 @@
+{
+  "name": "virtual-dmx-controller",
+  "version": "1.0.0",
+  "description": "Template for controlling the Virtual DMX rig (or real lights) over Art-Net",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "app": "node app/server.js",
+    "hello": "node examples/01-hello-light.js",
+    "rainbow": "node examples/02-rainbow-chase.js",
+    "pantilt": "node examples/03-pan-tilt.js",
+    "follow": "node examples/04-follow-spot.js",
+    "raw": "node examples/05-raw-dmx.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

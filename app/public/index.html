@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DMX Controller</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>DMX Controller</h1>
+    <div class="select-buttons">
+      Select
+      <button data-select="all">All</button>
+      <button data-select="color">Colour</button>
+      <button data-select="movers">Moving heads</button>
+      <button data-select="none">None</button>
+    </div>
+    <button id="blackout" class="danger">Blackout</button>
+  </header>
+
+  <main>
+    <section class="plan-wrap">
+      <svg id="plan" aria-label="Stage plan"></svg>
+      <p class="hint">Click a light to select it (shift-click for more). With moving heads selected, click or drag on the stage to aim them. <span id="cursor"></span></p>
+    </section>
+
+    <aside id="controls">
+      <h2 id="selection-title">Nothing selected</h2>
+
+      <div class="control" data-needs="color">
+        <label for="color">Colour</label>
+        <input id="color" type="color" value="#ffffff">
+      </div>
+
+      <div class="control">
+        <label for="dimmer">Dimmer <output for="dimmer"></output></label>
+        <input id="dimmer" type="range" min="0" max="1" step="0.01" value="1">
+      </div>
+
+      <div class="control" data-needs="white">
+        <label for="white">White <output for="white"></output></label>
+        <input id="white" type="range" min="0" max="255" step="1" value="0">
+      </div>
+
+      <div class="control" data-needs="move">
+        <label for="pan">Pan <output for="pan"></output></label>
+        <input id="pan" type="range" min="-270" max="270" step="1" value="0">
+      </div>
+
+      <div class="control" data-needs="move">
+        <label for="tilt">Tilt <output for="tilt"></output></label>
+        <input id="tilt" type="range" min="-135" max="135" step="1" value="0">
+      </div>
+
+      <div class="control" data-needs="move">
+        <label for="aim-height">Aim height</label>
+        <select id="aim-height">
+          <option value="0">Floor (0 m)</option>
+          <option value="1" selected>Waist (1 m)</option>
+          <option value="1.7">Head (1.7 m)</option>
+        </select>
+      </div>
+
+      <div class="control" data-needs="zoom">
+        <label for="zoom">Zoom <output for="zoom"></output></label>
+        <input id="zoom" type="range" min="6" max="40" step="1" value="20">
+      </div>
+
+      <div class="control" data-needs="strobe">
+        <label for="strobe">Strobe <output for="strobe"></output></label>
+        <input id="strobe" type="range" min="0" max="20" step="1" value="0">
+      </div>
+
+      <details>
+        <summary>Last API request</summary>
+        <pre id="last-request">—</pre>
+      </details>
+    </aside>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
