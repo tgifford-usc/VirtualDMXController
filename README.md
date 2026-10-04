@@ -10,29 +10,73 @@ It has three parts:
 | `examples/` | Short numbered scripts, from "turn a light on" to "follow spot" | Learn the library |
 | `app/` | A web controller: a Node server with a JSON API, and a page with a stage plan | Build your own interface |
 
-You need Node 18 or newer. There are no packages to install.
+You need Node 22 or newer (Node 18 works for local rigs only). There are no packages to install.
 
 ## Quick start
 
-1. Open the rig at <https://dmx.offig.com> to watch the lights.
-2. In this folder, run an example:
+1. **Get your own stage:** go to <https://dmx.offig.com/join/> and type your name and the class code your teacher gives you. (Or your teacher adds you.)
+2. **Download your settings file:** on the page that appears, press **Download my settings file**. You get `dmx-settings.txt`, which holds your stage's address and your key.
+3. **Move `dmx-settings.txt` into this folder** (the VirtualDMXController folder, next to `package.json`).
+4. **Run the controller:** in this folder, run `npm run app` and open <http://localhost:3000>. Open your stage's address in another tab to watch the lights.
+
+When it starts, the controller prints `Using settings from dmx-settings.txt` and `Rig: Connected to …'s stage`.
+
+The settings file holds your key, which works like a password. Don't share it, and don't commit it: `.gitignore` already keeps it out of git. If you download it again (`dmx-settings (1).txt`), the newest one is used.
+
+Things to run:
 
 ```bash
+npm run app        # the web controller for your stage, at http://localhost:3000
+npm run app:main   # the same, for the shared main stage (when it's your turn)
 npm run hello      # examples/01-hello-light.js
 npm run rainbow    # 02: animate with rig.loop()
 npm run pantilt    # 03: moving heads with pan/tilt in degrees
 npm run follow     # 04: aim every moving head at one moving point
 npm run raw        # 05: the raw DMX numbers underneath
-npm run app        # the web controller, at http://localhost:3000
+npm run bridge     # use TouchDesigner or QLC+ (see below)
 ```
 
-Run **one sender at a time**. If two programs send the same universe, the rig shows whichever packet arrived last and the lights flicker between them. The online rig is shared by everyone, so agree who's driving.
+Add `--main` to any script to send to the main stage, e.g. `npm run follow -- --main`.
 
-To use a rig running on your own computer instead (in the `VirtualDMX` folder, `npm start`, then open <http://localhost:8080>), put `SERVER=localhost` in front of the command:
+Run **one sender at a time**. If two programs send to the same stage, it shows whichever packet arrived last and the lights flicker between them.
+
+**The main stage** (`https://dmx.offig.com/`) is shared. Use `npm run app:main` when your teacher gives you control. Until then, the controller prints "Waiting for the teacher to give you control", and the lights start following you the moment you're handed control. No restart needed.
+
+**Without a settings file,** put the details in front of the command instead:
 
 ```bash
-SERVER=localhost npm run hello
+RIG_URL=https://dmx.offig.com/stage/ana/ KEY=your-key npm run app
 ```
+
+On Windows (PowerShell), set them first: `$env:RIG_URL="https://dmx.offig.com/stage/ana/"; $env:KEY="your-key"; npm run app`. Anything typed like this overrides the settings file.
+
+**A rig on your own computer** (in the `VirtualDMX` folder, `npm start`, then open <http://localhost:8080>) needs no key. Move your settings file out of the way, or override it:
+
+```bash
+SERVER=localhost RIG_URL= KEY= npm run hello
+```
+
+### Online with a key, or plain Art-Net
+
+The controller always builds standard Art-Net packets. What changes is how they travel:
+
+| | How Art-Net travels | When |
+| --- | --- | --- |
+| **With a `KEY`** | Inside a secure WebSocket (`wss://`) to the stage at `RIG_URL`, labelled with your key | The online VirtualDMX rig |
+| **Without a key** | Plain UDP to port 6454, as every lighting desk does | VirtualDMX on your own computer or local network, or **real lights** through an Art-Net node |
+
+So code you write for the online rig also runs a real DMX rig: just leave out the key and point `ARTNET_HOST` at the Art-Net node.
+
+### TouchDesigner, QLC+ and other software: the bridge
+
+Software like TouchDesigner and QLC+ can only send plain UDP Art-Net, which the online rig doesn't accept. Run the bridge in this folder:
+
+```bash
+npm run bridge          # your stage (uses your settings file)
+npm run bridge:main     # the main stage, when it's your turn
+```
+
+Then set your software's Art-Net output to **127.0.0.1**, universe 0, as if the rig were on your computer. The bridge forwards every packet, unchanged, to your stage. If VirtualDMX is also running on your computer, it uses the same port, so stop it first, or use `BRIDGE_PORT=16454` and send to that port instead.
 
 ## How lighting control works
 
@@ -106,12 +150,22 @@ rig.blackout();
 **Picking lights:** `rig.get(name)`, `rig.all`, `rig.movers`, `rig.colorLights`, `rig.byProfile('par-rgbw')`, `rig.where(f => f.position[0] < 0)`.
 Each of these is an array, so `forEach`, `[0]` and `filter` work, and it also takes every fixture method: `rig.movers.setColor(0, 0, 255)`.
 
-**Options:** `connect({ rig, host })`, or the environment variables `SERVER`, `RIG` and `ARTNET_HOST`. By default the library loads `https://dmx.offig.com/rig.json` and sends Art-Net to `dmx.offig.com` (UDP port 6454).
+**Options:** `connect({ rig, key, host })`, or these environment variables:
+
+| Variable | Does |
+| --- | --- |
+| `RIG_URL` | The stage's web address, e.g. `https://dmx.offig.com/stage/ana/`. Default: the main stage at `SERVER`. Can also be a `rig.json` URL or file (`RIG` works too). |
+| `KEY` | Your key. With it, Art-Net goes securely to the online rig; without it, plain UDP. |
+| `ARTNET_HOST` | Where plain UDP Art-Net goes. Default: the rig's host. |
+| `SERVER` | Shortcut: `localhost` for a rig on this computer. Default: `dmx.offig.com`. |
+
+All of these can go in `dmx-settings.txt` (or `.env`) in this folder, one per line like `KEY=abc123`. Anything set on the command line wins over the file. `--main` switches any script to the main stage.
 
 ```bash
-SERVER=localhost npm run follow                                                  # the rig on this computer
-ARTNET_HOST=192.168.1.20 RIG=http://192.168.1.20:8080/rig.json npm run follow   # a rig on another computer
-RIG=./my-rig.json ARTNET_HOST=2.0.0.10 npm run app                             # real lights via an Art-Net node
+RIG_URL=https://dmx.offig.com/stage/ana/ KEY=your-key npm run follow      # your stage online
+SERVER=localhost npm run follow                                           # the rig on this computer
+RIG_URL=http://192.168.1.20:8080/ npm run follow                          # a rig elsewhere on the local network
+RIG_URL=./my-rig.json ARTNET_HOST=2.0.0.10 npm run app                    # real lights via an Art-Net node
 ```
 
 ## The web controller and its API
@@ -156,11 +210,13 @@ fetch('http://localhost:3000/api/fixtures/Par%201', {
 
 ```
 lib/
-  artnet.js     building and sending Art-Net packets
+  artnet.js     building Art-Net packets and sending them over UDP
+  websocket.js  sending the same packets to an online rig, with a key
   fixture.js    one light: colour, dimmer, pan/tilt, aimAt
   rig.js        loading the rig, groups, the send loop
   index.js      what to import
 examples/       numbered example scripts
+tools/bridge.js forwards Art-Net from TouchDesigner, QLC+ etc. to an online rig
 app/
   server.js     HTTP server + JSON API
   public/       the control page (index.html, app.js, style.css)

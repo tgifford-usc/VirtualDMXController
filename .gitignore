@@ -1,2 +1,5 @@
 node_modules
 .DS_Store
+# Settings files hold your secret key: never commit them
+dmx-settings*.txt
+.env

@@ -6,13 +6,16 @@
   "private": true,
   "scripts": {
     "app": "node app/server.js",
+    "app:main": "node app/server.js --main",
     "hello": "node examples/01-hello-light.js",
     "rainbow": "node examples/02-rainbow-chase.js",
     "pantilt": "node examples/03-pan-tilt.js",
     "follow": "node examples/04-follow-spot.js",
-    "raw": "node examples/05-raw-dmx.js"
+    "raw": "node examples/05-raw-dmx.js",
+    "bridge": "node tools/bridge.js",
+    "bridge:main": "node tools/bridge.js --main"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   }
 }
