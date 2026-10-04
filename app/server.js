@@ -9,23 +9,59 @@
 //        body: { "color": [255, 0, 0] | "#ff0000", "white": 0–255, "dimmer": 0–1,
 //                "pan": degrees, "tilt": degrees, "aim": [x, y, z],
 //                "zoom": degrees, "strobe": flashes/sec, "channels": { "red": 255 } }
-//   POST /api/blackout
+//   POST /api/blackout             everything off, and stop any animations
+//   GET  /api/animations           the animations in animations.js, and which are running
+//   POST /api/animations/:name     start one, e.g. /api/animations/rainbow
+//   POST /api/animations/:name/stop
+//   POST /api/animations/stop      stop them all
+//   GET  /api/status               how the connection to the rig is going
 //
 // Example: curl -X POST localhost:3000/api/fixtures/Par%201 -H 'Content-Type: application/json' -d '{"color":"#ff0000"}'
+//
+// On a controller server shared by many people (MULTI_USER=on, see sessions.js),
+// every request also says whose stage it is for, with two headers:
+//   X-DMX-Stage: your stage address or name ("main" for the main stage)
+//   X-DMX-Key:   your key
 
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { connect } from '../lib/index.js';
+import { Sessions } from './sessions.js';
+import { listAnimations, startAnimation, stopAnimation, stopAnimations } from './animations.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public');
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml' };
 
-const rig = await connect();
+const MULTI_USER = /^(on|true|1|yes)$/i.test(process.env.MULTI_USER || '');
 
-function targets(name) {
+// Usually one rig, from your settings: online with your key, or plain UDP Art-Net
+// without one. A shared server instead connects each person to their own stage.
+let ownRig = null;
+let sessions = null;
+if (MULTI_USER) {
+  if (!process.env.RIG_URL) throw new Error('MULTI_USER needs RIG_URL: the rig\'s address, e.g. http://virtualdmx:8080/');
+  sessions = new Sessions(process.env.RIG_URL, process.env.PUBLIC_RIG_URL || process.env.RIG_URL);
+  console.log(`Shared controller: connecting each person to their stage on ${process.env.RIG_URL}`);
+} else {
+  ownRig = await connect();
+}
+
+const rigFor = req => (sessions ? sessions.rigFor(req) : ownRig);
+
+function status(rig) {
+  const { output } = rig;
+  return {
+    multiUser: MULTI_USER,
+    watch: rig.watchUrl,
+    // Plain UDP has no connection to report on: packets just go
+    ...(output.status ?? { connected: true, canSend: true, message: `Sending Art-Net (UDP) to ${output.host}` }),
+  };
+}
+
+function targets(rig, name) {
   if (name === 'all') return rig.all;
   if (name === 'movers') return rig.movers;
   if (name === 'color') return rig.colorLights;
@@ -60,26 +96,41 @@ async function readJSON(req) {
 
 async function handleApi(req, res, pathname) {
   const fixtureMatch = /^\/api\/fixtures\/(.+)$/.exec(pathname);
+  const animationMatch = /^\/api\/animations\/([a-z0-9-]+)(\/stop)?$/.exec(pathname);
+  const rig = await rigFor(req);
 
   if (req.method === 'GET' && pathname === '/api/rig') return sendJSON(res, 200, rig);
   if (req.method === 'GET' && fixtureMatch) return sendJSON(res, 200, rig.get(decodeURIComponent(fixtureMatch[1])));
   if (req.method === 'POST' && fixtureMatch) {
-    const list = targets(decodeURIComponent(fixtureMatch[1]));
+    const list = targets(rig, decodeURIComponent(fixtureMatch[1]));
     const command = await readJSON(req);
     list.forEach(f => apply(f, command));
     return sendJSON(res, 200, { fixtures: list });
   }
   if (req.method === 'POST' && pathname === '/api/blackout') {
+    stopAnimations(rig);
     rig.blackout();
     return sendJSON(res, 200, { ok: true });
   }
+  if (req.method === 'GET' && pathname === '/api/animations') return sendJSON(res, 200, listAnimations(rig));
+  if (req.method === 'POST' && pathname === '/api/animations/stop') {
+    stopAnimations(rig);
+    return sendJSON(res, 200, listAnimations(rig));
+  }
+  if (req.method === 'POST' && animationMatch) {
+    const [, name, stop] = animationMatch;
+    if (stop) stopAnimation(rig, name);
+    else startAnimation(rig, name);
+    return sendJSON(res, 200, listAnimations(rig));
+  }
+  if (req.method === 'GET' && pathname === '/api/status') return sendJSON(res, 200, status(rig));
   sendJSON(res, 404, { error: `No API route for ${req.method} ${pathname}` });
 }
 
 const server = http.createServer(async (req, res) => {
   // Allow pages from anywhere (p5.js editor, your own site...) to use the API.
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-DMX-Stage, X-DMX-Key');
   if (req.method === 'OPTIONS') return res.writeHead(204).end();
 
   const { pathname } = new URL(req.url, 'http://localhost');
@@ -93,7 +144,7 @@ const server = http.createServer(async (req, res) => {
     res.end(body);
   } catch (err) {
     if (err.code === 'ENOENT') return res.writeHead(404).end('Not found');
-    sendJSON(res, 400, { error: err.message });
+    sendJSON(res, err.status || 400, { error: err.message });
   }
 });
 

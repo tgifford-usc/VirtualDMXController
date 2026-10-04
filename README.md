@@ -174,6 +174,7 @@ RIG_URL=./my-rig.json ARTNET_HOST=2.0.0.10 npm run app                    # real
 - Click lights on the stage plan to select them; shift-click to select more.
 - Change colour, dimmer, pan/tilt, zoom and strobe in the side panel.
 - With moving heads selected, click or drag on the stage to aim them.
+- **Animate:** start the rainbow chase, moving head sweep or follow spot (the shows from `examples/02`–`04`). A colour show and a moving-head show can run together. **Blackout** stops them.
 
 Open **Last API request** to see what the page sends.
 
@@ -185,7 +186,11 @@ The page only talks to the server through a small JSON API, so anything that can
 | `GET /api/fixtures/Par%201` | One fixture |
 | `POST /api/fixtures/Par%201` | Change a fixture (body below) |
 | `POST /api/fixtures/all` (or `movers`, `color`) | Change a group |
-| `POST /api/blackout` | Everything off |
+| `POST /api/blackout` | Everything off, and stop any animations |
+| `GET /api/animations` | The animations, and which are running |
+| `POST /api/animations/rainbow` | Start one (`rainbow`, `sweep`, `follow`) |
+| `POST /api/animations/rainbow/stop` | Stop one (`/api/animations/stop` stops them all) |
+| `GET /api/status` | How the connection to the rig is going, e.g. "Waiting for the teacher to give you control" |
 
 ```json
 { "color": [255, 0, 0], "dimmer": 1, "pan": 30, "tilt": 45, "aim": [0, 1.7, 3.5], "zoom": 12, "strobe": 0, "white": 0, "channels": { "red": 255 } }
@@ -206,6 +211,28 @@ fetch('http://localhost:3000/api/fixtures/Par%201', {
 });
 ```
 
+### The shared controller (dmx-controller.offig.com)
+
+Your teacher runs one copy of this controller online for everyone, at <https://dmx-controller.offig.com>. The page asks for your stage address and key, remembers them in your browser, and has a **My stage / Main stage** switch. Nothing to install.
+
+It's the same code, started with `MULTI_USER=on` (see `app/sessions.js`). Instead of using one settings file, it keeps a connection to the rig for each person, and each API request says whose stage it's for with two extra headers:
+
+```js
+fetch('https://dmx-controller.offig.com/api/fixtures/Par%201', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-DMX-Stage': 'https://dmx.offig.com/stage/ana/', // or just "ana", or "main" for the main stage
+    'X-DMX-Key': 'your-key',
+  },
+  body: JSON.stringify({ color: '#00ff88' }),
+});
+```
+
+When you run the controller yourself, you don't need these headers: it sends wherever your settings say, and with no key that's plain UDP Art-Net, ready for a real rig.
+
+To run a shared controller: `MULTI_USER=on RIG_URL=<the rig's address> npm run app`. Optional: `PUBLIC_RIG_URL`, the rig's address as browsers see it, when the server reaches it by another address (e.g. inside Docker); `MAX_SESSIONS` (default 300).
+
 ## Project layout
 
 ```
@@ -219,6 +246,8 @@ examples/       numbered example scripts
 tools/bridge.js forwards Art-Net from TouchDesigner, QLC+ etc. to an online rig
 app/
   server.js     HTTP server + JSON API
+  animations.js the animations the page can start: add your own and they get a button
+  sessions.js   one rig connection per person, for a shared controller (MULTI_USER)
   public/       the control page (index.html, app.js, style.css)
 ```
 

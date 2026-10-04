@@ -29,7 +29,7 @@ header {
   border-bottom: 1px solid var(--border);
 }
 h1 { margin: 0; font-size: 16px; font-weight: 600; }
-.select-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--muted); }
+.select-buttons, .animation-buttons, #animations { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--muted); }
 #blackout { margin-left: auto; }
 
 button {
@@ -43,6 +43,7 @@ button {
 }
 button:hover { background: #2c2c33; }
 button.danger { border-color: var(--danger); color: var(--danger); }
+button.running { border-color: var(--accent); color: var(--accent); }
 
 main { flex: 1; display: flex; min-height: 0; }
 
@@ -94,3 +95,19 @@ pre { white-space: pre-wrap; word-break: break-all; color: var(--text); backgrou
   #controls { width: auto; border-left: 0; border-top: 1px solid var(--border); }
   #plan { min-height: 55vh; }
 }
+
+/* Connection to the rig */
+#connection { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; color: var(--muted); font-size: 12px; }
+#status.problem { color: var(--danger); }
+#status.ok { color: var(--text); }
+#account { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+#account[hidden] { display: none; }
+#account a { color: var(--accent); }
+select, input { font: inherit; color: var(--text); background: #222228; border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
+
+#connect { width: min(26em, calc(100vw - 32px)); padding: 20px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 10px; }
+#connect::backdrop { background: #000a; }
+#connect-form { display: flex; flex-direction: column; gap: 6px; }
+#connect-form p { margin: 0 0 8px; color: var(--muted); }
+#connect-form input { width: 100%; margin-bottom: 8px; }
+#login-error { color: var(--danger) !important; min-height: 1.4em; }

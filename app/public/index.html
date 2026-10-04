@@ -16,8 +16,38 @@
       <button data-select="movers">Moving heads</button>
       <button data-select="none">None</button>
     </div>
+    <div class="animation-buttons">
+      Animate
+      <span id="animations"></span>
+      <button id="stop-animations">Stop</button>
+    </div>
     <button id="blackout" class="danger">Blackout</button>
+    <div id="connection">
+      <span id="status">Connecting…</span>
+      <span id="account" hidden>
+        <select id="stage-choice" aria-label="Which stage">
+          <option value="own">My stage</option>
+          <option value="main">Main stage</option>
+        </select>
+        <a id="watch" target="_blank" rel="noopener">Watch</a>
+        <button id="change-login">Change</button>
+      </span>
+    </div>
   </header>
+
+  <!-- Only shown on a controller server shared by many people (MULTI_USER) -->
+  <dialog id="connect">
+    <form id="connect-form">
+      <h2>Connect to your stage</h2>
+      <p>Use the details your teacher gave you, or the ones from the sign-up page.</p>
+      <label for="login-stage">Your stage address</label>
+      <input id="login-stage" required placeholder="https://dmx.offig.com/stage/your-name/" autocomplete="off">
+      <label for="login-key">Your key</label>
+      <input id="login-key" required type="password" autocomplete="off">
+      <p id="login-error" role="alert"></p>
+      <button type="submit">Connect</button>
+    </form>
+  </dialog>
 
   <main>
     <section class="plan-wrap">

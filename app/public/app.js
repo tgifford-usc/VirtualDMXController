@@ -2,22 +2,100 @@
 // HTTP API in app/server.js, so this page is a good model for building your
 // own interface: one fetch() call per change.
 
+const $ = id => document.getElementById(id);
+
 // ---------- Talking to the server ----------
 
+async function request(url, { method = 'GET', body } = {}) {
+  const headers = { ...loginHeaders() };
+  if (body) headers['Content-Type'] = 'application/json';
+  const res = await fetch(url, { method, headers, body });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.error || `The server said ${res.status}`), { status: res.status });
+  return data;
+}
+
 const api = {
-  getRig: () => fetch('/api/rig').then(r => r.json()),
-  blackout: () => fetch('/api/blackout', { method: 'POST' }),
-  async update(target, command) {
+  getRig: () => request('/api/rig'),
+  getStatus: () => request('/api/status'),
+  blackout: () => request('/api/blackout', { method: 'POST' }),
+  getAnimations: () => request('/api/animations'),
+  animate: (name, on) => request(`/api/animations/${name}${on ? '' : '/stop'}`, { method: 'POST' }),
+  stopAnimations: () => request('/api/animations/stop', { method: 'POST' }),
+  update(target, command) {
     const body = JSON.stringify(command);
     document.getElementById('last-request').textContent = `POST /api/fixtures/${encodeURIComponent(target)}\n${body}`;
-    const res = await fetch(`/api/fixtures/${encodeURIComponent(target)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body,
-    });
-    return res.json();
+    return request(`/api/fixtures/${encodeURIComponent(target)}`, { method: 'POST', body });
   },
 };
+
+// ---------- Your stage and key (only on a shared controller server) ----------
+// When you run the controller yourself, it already knows where to send (your
+// settings file, or plain UDP Art-Net), so requests need nothing extra. On a
+// server shared by many people, each request says whose stage it's for.
+
+let login = null; // { stage, key, main }
+try { login = JSON.parse(localStorage.getItem('dmx-login')); } catch {}
+
+function saveLogin(value) {
+  login = value;
+  try {
+    if (login) localStorage.setItem('dmx-login', JSON.stringify(login));
+    else localStorage.removeItem('dmx-login');
+  } catch {}
+}
+
+function loginHeaders() {
+  if (!login) return {};
+  return { 'X-DMX-Stage': login.main ? 'main' : login.stage, 'X-DMX-Key': login.key };
+}
+
+// The server needs a stage and key (401), or refused the ones we sent (403, 404)
+const needsLogin = err => [401, 403, 404].includes(err.status);
+
+function askForLogin(message = '') {
+  $('login-error').textContent = message;
+  showStatus(message || 'Not connected', true);
+  if ($('connect').open) return; // already asking: leave what they're typing alone
+  $('login-stage').value = login?.stage || '';
+  $('login-key').value = login?.key || '';
+  $('connect').showModal();
+}
+
+$('connect-form').addEventListener('submit', event => {
+  event.preventDefault();
+  saveLogin({ stage: $('login-stage').value.trim(), key: $('login-key').value.trim(), main: false });
+  $('stage-choice').value = 'own';
+  $('login-error').textContent = 'Connecting…';
+  load();
+});
+
+$('stage-choice').addEventListener('change', () => {
+  saveLogin({ ...login, main: $('stage-choice').value === 'main' });
+  load();
+});
+
+$('change-login').addEventListener('click', () => askForLogin());
+
+function showStatus(message, problem = false) {
+  $('status').textContent = message;
+  $('status').className = problem ? 'problem' : 'ok';
+}
+
+// The rig tells us things like "Waiting for the teacher to give you control"
+async function checkStatus() {
+  if ($('connect').open) return; // wait until they've entered their details
+  try {
+    const status = await api.getStatus();
+    showStatus(status.message, !status.connected || !status.canSend);
+    $('account').hidden = !status.multiUser;
+    if (status.watch) $('watch').href = status.watch;
+  } catch (err) {
+    if (needsLogin(err)) askForLogin(err.message);
+    else showStatus(err.message, true);
+  }
+}
+setInterval(checkStatus, 5000);
 
 // Sliders fire many events a second. Collect changes and send them at most
 // 25 times a second, merged per fixture.
@@ -33,7 +111,12 @@ async function flush() {
   flushTimer = null;
   const batch = [...pending];
   pending.clear();
-  const results = await Promise.all(batch.map(([name, command]) => api.update(name, command)));
+  let results;
+  try {
+    results = await Promise.all(batch.map(([name, command]) => api.update(name, command)));
+  } catch (err) {
+    return needsLogin(err) ? askForLogin(err.message) : showStatus(err.message, true);
+  }
   for (const { fixtures: updated = [] } of results) {
     for (const f of updated) fixtures.set(f.name, f);
   }
@@ -47,7 +130,6 @@ let rig;
 const fixtures = new Map(); // name -> fixture JSON from the server
 const selected = new Set();
 
-const $ = id => document.getElementById(id);
 const svg = $('plan');
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -247,6 +329,51 @@ document.querySelectorAll('[data-select]').forEach(button => button.addEventList
   showSelection(true);
 }));
 
+// ---------- Animations ----------
+// One button for each animation in app/animations.js. The server runs them,
+// so they keep going when you use the other controls (on the lights they don't use).
+
+let animating = false;
+
+function showAnimations(list) {
+  $('animations').replaceChildren(...list.map(animation => {
+    const button = document.createElement('button');
+    button.textContent = animation.title;
+    button.classList.toggle('running', animation.running);
+    button.setAttribute('aria-pressed', animation.running);
+    button.addEventListener('click', () => changeAnimations(api.animate(animation.name, !animation.running)));
+    return button;
+  }));
+  animating = list.some(animation => animation.running);
+}
+
+async function changeAnimations(request) {
+  try {
+    showAnimations(await request);
+  } catch (err) {
+    needsLogin(err) ? askForLogin(err.message) : showStatus(err.message, true);
+  }
+}
+
+$('stop-animations').addEventListener('click', () => changeAnimations(api.stopAnimations()));
+
+// While something is animating, fetch the lights' state a few times a second
+// so the stage plan moves too.
+let refreshing = false;
+setInterval(async () => {
+  if (!animating || refreshing || document.hidden) return;
+  refreshing = true;
+  try {
+    const latest = await api.getRig();
+    for (const f of latest.fixtures) fixtures.set(f.name, f);
+    drawPlan();
+  } catch {
+    // the status line reports connection problems
+  } finally {
+    refreshing = false;
+  }
+}, 250);
+
 $('blackout').addEventListener('click', async () => {
   await api.blackout();
   await load();
@@ -255,7 +382,15 @@ $('blackout').addEventListener('click', async () => {
 // ---------- Start ----------
 
 async function load() {
-  rig = await api.getRig();
+  try {
+    rig = await api.getRig();
+  } catch (err) {
+    return needsLogin(err) ? askForLogin(err.message) : showStatus(err.message, true);
+  }
+  if ($('connect').open) $('connect').close();
+  if (login) $('stage-choice').value = login.main ? 'main' : 'own';
+  checkStatus();
+  changeAnimations(api.getAnimations());
   fixtures.clear();
   for (const f of rig.fixtures) fixtures.set(f.name, f);
   drawPlan();
