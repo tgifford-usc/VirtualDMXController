@@ -10,6 +10,8 @@ It has three parts:
 | `examples/` | Short numbered scripts, from "turn a light on" to "follow spot" | Learn the library |
 | `app/` | A web controller: a Node server with a JSON API, and a page with a stage plan | Build your own interface |
 
+**Want lights that react to a sensor, a webcam or anything else?** Start with [MAKE-YOUR-OWN.md](MAKE-YOUR-OWN.md) and `app/public/example.html`.
+
 You need Node 22 or newer (Node 18 works for local rigs only). There are no packages to install.
 
 ## Quick start
@@ -176,7 +178,7 @@ RIG_URL=./my-rig.json ARTNET_HOST=2.0.0.10 npm run app                    # real
 - With moving heads selected, click or drag on the stage to aim them.
 - **Animate:** start the rainbow chase, moving head sweep or follow spot (the shows from `examples/02`–`04`). A colour show and a moving-head show can run together. **Blackout** stops them.
 
-Open **Last API request** to see what the page sends.
+Open **Last API request** to see what the page sends. For the smallest possible page, see <http://localhost:3000/example.html> (`app/public/example.html`), and [MAKE-YOUR-OWN.md](MAKE-YOUR-OWN.md) for building your own app from it.
 
 The page only talks to the server through a small JSON API, so anything that can make HTTP requests can use it: another web page, p5.js, Python, TouchDesigner, Max, or `curl`:
 
@@ -248,7 +250,7 @@ app/
   server.js     HTTP server + JSON API
   animations.js the animations the page can start: add your own and they get a button
   sessions.js   one rig connection per person, for a shared controller (MULTI_USER)
-  public/       the control page (index.html, app.js, style.css)
+  public/       the control page (index.html, app.js, style.css), and example.html: one light, a few buttons
 ```
 
 ## Ideas to build on

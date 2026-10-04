@@ -1,0 +1,69 @@
+<!doctype html>
+<!--
+  The smallest possible lighting app: a few buttons and a slider for one light.
+  Open it at http://localhost:3000/example.html while "npm run app" is running.
+
+  Copy this file (e.g. to my-app.html) to start your own app. Everything that
+  talks to the lights is the setLight() function below; the rest is up to you:
+  sensors (WebSerial), a webcam (MediaPipe), sound, a game... See MAKE-YOUR-OWN.md.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>One light</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #111; color: #eee; max-width: 30em; margin: 2em auto; padding: 0 1em; }
+    button { font: inherit; padding: 0.4em 1em; margin: 0 0.3em 0.3em 0; }
+    input[type=range] { width: 100%; }
+    #message { color: #aaa; }
+  </style>
+</head>
+<body>
+  <h1>Par 3</h1>
+
+  <p>
+    <button id="red">Red</button>
+    <button id="blue">Blue</button>
+    <button id="off">Off</button>
+  </p>
+
+  <label for="brightness">Brightness</label>
+  <input id="brightness" type="range" min="0" max="1" step="0.01" value="1">
+
+  <p id="message"></p>
+
+  <script>
+    // Change a light (or a group: "all", "movers", "color").
+    // look is what to change, e.g. { color: '#ff0000', dimmer: 0.5 }.
+    // It can also have pan, tilt, aim, zoom, strobe and white: see the API in README.md.
+    async function setLight(name, look) {
+      const response = await fetch(`/api/fixtures/${encodeURIComponent(name)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...stageAndKey() },
+        body: JSON.stringify(look),
+      });
+      const answer = await response.json();
+      document.getElementById('message').textContent = response.ok
+        ? `Sent ${JSON.stringify(look)} to ${name}`
+        : `Didn't work: ${answer.error}`;
+    }
+
+    // Only for the shared controller at dmx-controller.offig.com: every request
+    // there also says whose stage it's for. Connect once on the main page
+    // (index.html) and this page uses the same details. On your own computer
+    // (npm run app) this isn't needed, and does nothing.
+    function stageAndKey() {
+      const login = JSON.parse(localStorage.getItem('dmx-login') || 'null');
+      if (!login) return {};
+      return { 'X-DMX-Stage': login.main ? 'main' : login.stage, 'X-DMX-Key': login.key };
+    }
+
+    // The buttons and slider
+    document.getElementById('red').onclick = () => setLight('Par 3', { color: '#ff0000', dimmer: 1 });
+    document.getElementById('blue').onclick = () => setLight('Par 3', { color: '#0000ff', dimmer: 1 });
+    document.getElementById('off').onclick = () => setLight('Par 3', { dimmer: 0 });
+    document.getElementById('brightness').oninput = event => setLight('Par 3', { dimmer: Number(event.target.value) });
+  </script>
+</body>
+</html>
